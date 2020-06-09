@@ -1,0 +1,67 @@
+on:
+  push:
+    tags:
+    - 'v*' # Called on push with version tags (ie v1.2.3)
+name: Go Release
+
+jobs:
+  build:
+    name: Upload Release Asset
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get release information
+        id: release
+        run: |
+          echo ::set-output name=TAG::${GITHUB_REF/refs\/tags\//}
+
+      - name: Set up Go 1.13
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.13
+        id: go
+
+      - name: Check out code
+        uses: actions/checkout@v1
+
+      - name: Get dependencies
+        run: |
+          mkdir -p ${HOME}/go
+          GOPATH=${HOME}/go go get github.com/ezrec/uv3dp/cmd/uv3dp
+
+      - name: Craft per-board Artifacts
+        run: |
+          # Builds EPAX-X1N-<tag>.zip
+          ./convert.sh EPAX-X1N-${{ steps.release.outputs.TAG }} ctb bed -M EPAX-X1
+          # Builds Phrozen-Sonic-Mini-<tag>.zip
+          ./convert.sh Phrozen-Sonic-Mini-${{ steps.release.outputs.TAG }} phz bed -M Phrozen-Sonic-Mini
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.release.outputs.TAG }}
+          release_name: Release ${{ steps.release.outputs.TAG }}
+          draft: false
+          prerelease: false
+      - name: Upload EPAX-X1N Release Asset
+        id: upload-release-asset-epax-x1n
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: EPAX-X1N-${{ steps.release.outputs.TAG }}.zip
+          asset_name: EPAX-X1N-${{ steps.release.outputs.TAG }}.zip
+          asset_content_type: application/zip
+      - name: Upload Phrozen-Sonic-Mini Release Asset
+        id: upload-release-asset-phrozen-sonic-mini
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: Phrozen-Sonic-Mini-${{ steps.release.outputs.TAG }}.zip
+          asset_name: Phrozen-Sonic-Mini-${{ steps.release.outputs.TAG }}.zip
+          asset_content_type: application/zip
